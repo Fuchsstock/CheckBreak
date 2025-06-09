@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CheckBreak</title>
+  <style>
+    :root {
+      --primary: #5a2a83;
+      --accent: #fed6e3;
+      --bg: #f8f4fb;
+      --card: #ffffff;
+      --shadow: rgba(0, 0, 0, 0.05);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to bottom right, #a8edea, #fed6e3);
+      margin: 0;
+      padding: 20px;
+      color: #333;
+      min-height: 100vh;
+    }
+
+    h1 {
+      text-align: center;
+      color: var(--primary);
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .verse {
+      background-color: var(--card);
+      border-left: 6px solid var(--primary);
+      padding: 15px 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 8px var(--shadow);
+      max-width: 600px;
+      margin: 0 auto 30px;
+      font-style: italic;
+      color: #4c4c4c;
+    }
+
+    #addTrackerForm {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 30px;
+      flex-wrap: wrap;
+    }
+
+    input, textarea {
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 1rem;
+      outline: none;
+    }
+
+    button {
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    button:hover {
+      background-color: #7a44aa;
+    }
+
+    .tracker {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 20px;
+      margin: 0 auto 20px;
+      max-width: 600px;
+      box-shadow: 0 4px 12px var(--shadow);
+    }
+
+    .tracker h2 {
+      margin-top: 0;
+      color: var(--primary);
+      font-size: 1.4rem;
+    }
+
+    .tracker-info {
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+
+    .note {
+      margin-top: 10px;
+    }
+
+    ul {
+      list-style: none;
+      padding-left: 0;
+      margin-top: 10px;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+
+    li {
+      padding: 8px;
+      background: #f5f1f7;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      font-size: 0.95rem;
+    }
+
+    .note-date {
+      font-weight: bold;
+      color: var(--primary);
+      margin-right: 5px;
+    }
+
+    @media (max-width: 600px) {
+      .tracker, .verse {
+        margin: 10px;
+      }
+
+      input[type="text"] {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>CheckBreak</h1>
+  <div class="verse" id="verse">Bibelvers wird geladen...</div>
+
+  <form id="addTrackerForm">
+    <input type="text" id="newTrackerName" placeholder="Neuer Tracker (z.B. Kein Zucker)" required />
+    <button type="submit">Hinzufügen</button>
+  </form>
+
+  <div style="text-align:center; margin-bottom: 20px;">
+    <button id="exportBtn">Tracker exportieren</button>
+    <input type="file" id="importInput" accept="application/json" style="display:none;" />
+    <button id="importBtn">Tracker importieren</button>
+  </div>
+
+  <div id="trackersContainer"></div>
+
+  <!-- Fuchsstock Branding -->
+  <div style="
+    position: fixed;
+    bottom: 10px;
+    right: 15px;
+    font-size: 0.85rem;
+    color: #555;
+    opacity: 0.6;
+    font-family: 'Segoe UI', sans-serif;
+  ">
+    by Fuchsstock
+  </div>
+
+  <script>
+    const bibleVerses = [
+      "Psalm 46,2: Gott ist unsere Zuflucht und Stärke.",
+      "Jesaja 41,10: Fürchte dich nicht, denn ich bin mit dir.",
+      "Philipper 4,13: Ich vermag alles durch den, der mich stark macht.",
+      "Matthäus 11,28: Kommt her zu mir, alle, die ihr mühselig seid.",
+      "Römer 8,28: Denen, die Gott lieben, dient alles zum Guten.",
+      "Psalm 23,1: Der Herr ist mein Hirte, mir wird nichts mangeln."
+    ];
+
+    const trackersKey = 'checkbreak_trackers';
+
+    function showRandomVerse() {
+      const verse = bibleVerses[Math.floor(Math.random() * bibleVerses.length)];
+      document.getElementById('verse').textContent = verse;
+    }
+
+    function loadTrackers() {
+      return JSON.parse(localStorage.getItem(trackersKey)) || {};
+    }
+
+    function saveTrackers(data) {
+      localStorage.setItem(trackersKey, JSON.stringify(data));
+    }
+
+    function renderTrackers() {
+      const trackers = loadTrackers();
+      const container = document.getElementById('trackersContainer');
+      container.innerHTML = '';
+
+      Object.entries(trackers).forEach(([id, tracker]) => {
+        const div = document.createElement('div');
+        div.className = 'tracker';
+        div.innerHTML = `
+          <h2>${tracker.name}</h2>
+          <div class="tracker-info">${tracker.count} ${tracker.count === 1 ? 'Tag' : 'Tage'} clean</div>
+          <button onclick="checkIn('${id}')">Einchecken</button>
+          <button onclick="resetTracker('${id}')">Reset</button>
+          <div class="note">
+            <textarea id="note-${id}" placeholder="Tagesnotiz..."></textarea>
+            <button onclick="saveNote('${id}')">Notiz speichern</button>
+          </div>
+          <ul id="notes-${id}">${tracker.notes?.map(n => `<li><span class="note-date">${n.date}:</span>${n.text}</li>`).reverse().join('') || ''}</ul>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function checkIn(id) {
+      const trackers = loadTrackers();
+      const today = new Date().toISOString().split('T')[0];
+      if (trackers[id].lastCheckin === today) {
+        alert("Heute schon eingecheckt.");
+        return;
+      }
+      trackers[id].count += 1;
+      trackers[id].lastCheckin = today;
+      saveTrackers(trackers);
+      renderTrackers();
+    }
+
+    function resetTracker(id) {
+      if (!confirm("Wirklich zurücksetzen?")) return;
+      const trackers = loadTrackers();
+      delete trackers[id];
+      saveTrackers(trackers);
+      renderTrackers();
+    }
+
+    function saveNote(id) {
+      const trackers = loadTrackers();
+      const textarea = document.getElementById(`note-${id}`);
+      const text = textarea.value.trim();
+      if (!text) {
+        alert("Bitte schreibe etwas.");
+        return;
+      }
+      const date = new Date().toISOString().split('T')[0];
+      trackers[id].notes = trackers[id].notes || [];
+      trackers[id].notes.push({ date, text });
+      textarea.value = '';
+      saveTrackers(trackers);
+      renderTrackers();
+    }
+
+    document.getElementById('addTrackerForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      const name = document.getElementById('newTrackerName').value.trim();
+      if (!name) return;
+
+      const trackers = loadTrackers();
+      const id = Date.now().toString();
+      trackers[id] = {
+        name,
+        count: 0,
+        lastCheckin: '',
+        notes: []
+      };
+      saveTrackers(trackers);
+      document.getElementById('newTrackerName').value = '';
+      renderTrackers();
+    });
+
+    // Export Funktion: Tracker als JSON speichern
+    document.getElementById('exportBtn').addEventListener('click', () => {
+      const data = localStorage.getItem(trackersKey);
+      if (!data) {
+        alert('Keine Tracker-Daten zum Exportieren.');
+        return;
+      }
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'checkbreak_trackers.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // Import Funktion: Datei auswählen und Tracker laden
+    document.getElementById('importBtn').addEventListener('click', () => {
+      document.getElementById('importInput').click();
+    });
+
+    document.getElementById('importInput').addEventListener('change', (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const importedData = JSON.parse(e.target.result);
+          if (typeof importedData !== 'object' || Array.isArray(importedData)) {
+            alert('Ungültiges Format der importierten Datei.');
+            return;
+          }
+          localStorage.setItem(trackersKey, JSON.stringify(importedData));
+          renderTrackers();
+          alert('Tracker erfolgreich importiert!');
+        } catch (error) {
+          alert('Fehler beim Importieren: ' + error.message);
+        }
+      };
+      reader.readAsText(file);
+
+      // Reset input, damit der gleiche file wieder ausgewählt werden kann
+      event.target.value = '';
+    });
+
+    showRandomVerse();
+    renderTrackers();
+  </script>
+
+</body>
+</html>
